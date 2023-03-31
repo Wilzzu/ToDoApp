@@ -5,18 +5,62 @@
  *  @flow strict-local
  */
 
-import React, {useEffect, useState} from 'react';
-import {ScrollView, StyleSheet, View, Text} from 'react-native';
+import React, {useEffect, useRef, useState} from 'react';
+import {ScrollView, StyleSheet, View, Text, AppState} from 'react-native';
 import ToDoItem from './src/Components/ToDoItem';
 import CategoryButtons from './src/Components/CategoryButtons';
 import AddToDo from './src/Components/AddToDo';
-// import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 function App() {
   // States
   const [allToDos, setAllToDos] = useState([]);
   const [filteredToDos, setFilteredToDos] = useState([]);
   const [currentCategory, setCurrentCategory] = useState('All');
+  const [appStatus, setAppStatus] = useState(null);
+
+  // Functions for storing and fetching local storage
+  const setLocalData = async () => {
+    try {
+      const json = JSON.stringify(allToDos);
+      await AsyncStorage.setItem('@allTodos', json);
+    } catch (e) {
+      console.log(e);
+    }
+  };
+
+  const getLocalData = async () => {
+    try {
+      const json = await AsyncStorage.getItem('@allTodos');
+      if (json != null && JSON.parse(json).length) {
+        setAllToDos(JSON.parse(json));
+      }
+    } catch (e) {
+      console.log(e);
+    }
+  };
+
+  // Listen when app is closed
+  const appState = useRef(AppState.currentState);
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', state => {
+      appState.current = state;
+      setAppStatus(appState.current);
+    });
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  // When app is closed save current ToDo list to local storage
+  useEffect(() => {
+    if (appStatus == 'background') setLocalData();
+  }, [appStatus]);
+
+  // On app startup fetch local storage
+  useEffect(() => {
+    getLocalData();
+  }, []);
 
   // Toggle ToDo item's "completed" status
   const handleToggleToDo = id => {
@@ -61,7 +105,7 @@ function App() {
           {/* List of all ToDos */}
           <View style={styles.list}>
             <Text style={styles.categoryTitle}>{currentCategory} ToDos:</Text>
-            {filteredToDos &&
+            {filteredToDos.length > 0 &&
               filteredToDos
                 .slice(0)
                 .reverse()
